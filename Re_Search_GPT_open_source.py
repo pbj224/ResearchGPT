@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon May 22 13:02:16 2023
-
-@author: PeterJordan
-"""
-
 import requests
 import json
 import openai
