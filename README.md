@@ -19,9 +19,9 @@ At its core, the script's purpose is to automate a variety of research tasks, cr
 
 The first step involves using the Google Custom Search JSON API to conduct a targeted, far-reaching search of the web. By accurately interpreting the user's research requirements, the script is able to retrieve the most relevant and authoritative content on the web, making optimal use of Google's unparalleled search infrastructure.
 
-Following the search, the script then performs a critical evaluation of the retrieved links, assessing their content for relevance and reliability. This phase involves an intelligent ranking and ordering process, which arranges the links based on their appropriateness to the research question at hand, thereby prioritizing high-value resources.
+Following the search, the script then performs an evaluation of the retrieved links, assessing their content for relevance and reliability. This phase involves a ranking and ordering process, which arranges the links based on their appropriateness to the research question at hand, thereby prioritizing high-value resources.
 
-Once the most suitable links are selected, the next step involves delving into the content of these webpages and extracting the necessary information. This is made possible through efficient web scraping techniques, and the sophisticated language understanding capabilities of GPT-4. This allows the script to pinpoint and extract only the most relevant pieces of information, disregarding any extraneous data.
+Once the most suitable links are selected, the next step involves delving into the content of these webpages and extracting the necessary information using GPT-4. This allows the script to pinpoint and extract only the most relevant pieces of information, disregarding any extraneous data.
 
 The extracted data is then subject to the transformative process of text summarization. This task is performed by the GPT-4 model, which distills the content into its most crucial points, creating a summary that retains all the critical information while shedding the redundant details. This ensures that the final output is concise and easy to understand, without any compromise on the richness or depth of the information.
 
