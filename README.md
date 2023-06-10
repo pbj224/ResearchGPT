@@ -32,7 +32,7 @@ In conclusion, this script stands as an advanced research tool, expertly merging
 # Key Functionalities
  - Web Searching: Utilizing the Google Custom Search JSON API, the script queries the web based on user-specified research topics.
  - Link Evaluation & Ordering: The search results are assessed, sorted, and ranked in order of relevance to the given research question.
- - Content Extraction & Summarization: Web content from the chosen links is scraped, tokenized, and summarized using a GPT-4 model, extracting the most relevant information and discarding the rest.
+ - Content Extraction & Summarization: Web content from the chosen links is scraped, tokenized, and summarized using the GPT-4 model, extracting the most relevant information and discarding the rest.
  - Report Generation: All the summarized data is aggregated and the script generates a comprehensive, evidence-backed research report, addressing the initial query. All sources of information are duly cited to ensure transparency.
 
 # Dependencies
