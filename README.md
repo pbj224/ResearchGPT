@@ -23,7 +23,7 @@ Following the search, the script then performs an evaluation of the retrieved li
 
 Once the most suitable links are selected, the next step involves delving into the content of these webpages and extracting the necessary information using GPT-4. This allows the script to pinpoint and extract only the most relevant pieces of information, disregarding any extraneous data.
 
-The extracted data is then subject to the transformative process of text summarization. This task is performed by the GPT-4 model, which distills the content into its most crucial points, creating a summary that retains all the critical information while shedding the redundant details. This ensures that the final output is concise and easy to understand, without any compromise on the richness or depth of the information.
+The extracted data is then summarized. This task is performed by the GPT-4 model, which distills the content into its most crucial points, creating a summary that retains all the critical information while shedding the redundant details. This ensures that the final output is concise and easy to understand, without any compromise on the richness or depth of the information.
 
 The final step in the process involves aggregating all the summarized data, and compiling it into a well-organized, evidence-backed research report. This report is formulated to address the user's original query, offering comprehensive insights and conclusions that have been derived from a broad array of reliable sources. To ensure the transparency and traceability of the information, all sources are accurately cited within the report.
 
