@@ -28,18 +28,16 @@ def passage_segmenter(passage):
     segment = []
     count = 0
     while count < len(passage):
-        segment.append(passage[count:count + 10000])
-        count += 10000
+        segment.append(passage[count:count + 11000])
+        count += 11000
     return segment
 
 def ask_question(messages):
-
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=messages,
         stream=True
     )
-
     output = ""
     print("thinking...")
     for chunk in response:
@@ -71,7 +69,7 @@ def summarize(query, res, link):
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": """You are a helpful, pattern-following assistant. You are given some text retrieved from a website and a research query and you generate a summary of only the parts of the text relevant and useful to the answering the research query. You only answer using the following JSON format:
+            {"role": "system", "content": """You are a helpful, pattern-following assistant. You are given some text retrieved from a website and a research query and you generate a detailed summary of only the parts of the text relevant and useful to the answering the research query. You only answer using the following JSON format:
              {
                 "is_relevant" : boolean, #true if the provided text provides information relevant to answering the users query, false if the text irrelevant to the query or just discusses access denial to a webpage
                 "summary": "string" #summary of the key information in the text if is_relevant is true. null if is_relevant is false
@@ -80,26 +78,6 @@ def summarize(query, res, link):
         ],
         stream = True
     )
-    output = ""
-    for chunk in response:
-        if "delta" in chunk["choices"][0]:
-            delta = chunk["choices"][0]["delta"]
-            if "content" in delta:
-                content = delta["content"]
-                output += content
-                print(content, end="")
-    return output
-
-def summarize_list(query, summaries):
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are a helpful, summarizing assistant. You receive a specific question and then some text and your job is to summarize the text that specifically relates to the question. Anytime you encounter text that indicates an error occured during the scraping process, only respond with \"na\" and absoletely nothing else."},
-            {"role": "user", "content": f"Summarize the key points in the following text, which summarize the content on a website that specifucally relates to answering the question, {query}. If there is none, respond with only \"na\". Text: " + summaries}
-        ],
-        stream = True
-    )
-    print("summarizing..")
     output = ""
     for chunk in response:
         if "delta" in chunk["choices"][0]:
@@ -141,7 +119,6 @@ def check_source(query_links, search_info, topic_summary):
     return output
 
 def start_research(query):
-    
     messages=[
         {"role": "system", "content": """
     You are an AI research assistant that only responds in JSON. You have been shown to be capable of completing 
@@ -265,7 +242,6 @@ def generate_answer(query, json_dict):
     answer = ask_question(answer_messages)
     return answer
 
-    
 def main():
     query = input("Query: ")
     global read_links
