@@ -6,16 +6,9 @@ from bs4 import BeautifulSoup
 from transformers import GPT2Tokenizer
 import time
 import random
-
+from googleapiclient.discovery import build
 
 openai.api_key="enter_openai_api-key"
-
-def count_tokens(string):
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    tokens = tokenizer.tokenize(string)
-    return len(tokens)-1
-
-from googleapiclient.discovery import build
 
 def search_web(query, num_results=9):
     search_results = []
@@ -35,8 +28,8 @@ def passage_segmenter(passage):
     segment = []
     count = 0
     while count < len(passage):
-        segment.append(passage[count:count + 8000])
-        count += 8000
+        segment.append(passage[count:count + 10000])
+        count += 10000
     return segment
 
 def ask_question(messages):
@@ -78,12 +71,12 @@ def summarize(query, res, link):
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": """You are a helpful, pattern-following assistant. You are given some text retrieved from a website and a research query and you summarize only the parts of the text relevant and useful to the answering the research query. You only answer using the following JSON format:
+            {"role": "system", "content": """You are a helpful, pattern-following assistant. You are given some text retrieved from a website and a research query and you generate a summary of only the parts of the text relevant and useful to the answering the research query. You only answer using the following JSON format:
              {
                 "is_relevant" : boolean, #true if the provided text provides information relevant to answering the users query, false if the text irrelevant to the query or just discusses access denial to a webpage
                 "summary": "string" #summary of the key information in the text if is_relevant is true. null if is_relevant is false
             }"""},
-            {"role": "user", "content": f"Summarize the key information in the following text, which was scraped from the website {link}, that are relevant to answering the question, {query}. Text: " + res}
+            {"role": "user", "content": f"Summarize the key information in the following text in significant detail, which was scraped from the website {link}, that are relevant to answering the question, {query}. Text: " + res}
         ],
         stream = True
     )
@@ -250,7 +243,7 @@ def create_summaries(search_query, search_info, query_links, ordered_links, json
 def generate_answer(query, json_dict):
     answer_messages=[
         {"role": "system", "content": """
-        You are a research chatbot. You will be provided with a research task from the user as well as a bunch of information that was just scraped from the web and your job is to use that information to generate a very detailed and comprehensive research report with evidence-based explanations for every argument. You will always cite your work by using footnotes.
+        You are a research chatbot. You will be provided with a research task from the user as well as a bunch of information that was just scraped from the web and your job is to use that information to generate a very detailed and comprehensive research report with evidence-based explanations for every argument. Your reports should be comparable in length to professional industry research reports like ones published by Nielsens or think tanks like Brookings Institute. Your outputs should never be less than 700 words in length but you should always aim for 1200 words. You will always cite your work by using footnotes.
         """}
     ]
 
@@ -284,4 +277,3 @@ def main():
     output = generate_answer(query, json_dict)
     
 main()
-    
