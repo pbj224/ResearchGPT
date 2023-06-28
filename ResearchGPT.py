@@ -17,13 +17,13 @@ from docx.oxml import parse_xml
 from html2text import html2text
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-openai.api_key="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"
+openai.api_key="openai-api-key"
 
 def search_web(query, num_results=9):
     global skip
     search_results = []
-    service = build("customsearch", "v1", developerKey="AIzaSyDW5Z7zYsX5uRshI-rz-RAInnAzigLkuT0")
-    res = service.cse().list(q=query, cx='637feeb77e1f3e69b', num=num_results).execute()
+    service = build("customsearch", "v1", developerKey="google-api-key")
+    res = service.cse().list(q=query, cx='search-engine-key', num=num_results).execute()
     try:
         search_results = [item['link'] for item in res['items']]
         skip = False
