@@ -1,41 +1,121 @@
+import re
+import os
 import requests
 import json
 import openai
-from googlesearch import search
 from bs4 import BeautifulSoup
-from transformers import GPT2Tokenizer
 import time
 import random
 from googleapiclient.discovery import build
+import io
+from PyPDF2 import PdfReader
+import markdown
+from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import nsdecls
+from docx.oxml import parse_xml
+from html2text import html2text
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-openai.api_key="enter_openai_api-key"
+openai.api_key="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"
 
-# This function performs a Google search and returns a list of search results
 def search_web(query, num_results=9):
+    global skip
     search_results = []
-    service = build("customsearch", "v1", developerKey="enter_google_api_key")
-    res = service.cse().list(q=query, cx='enter_google_c_key', num=num_results).execute()
-    search_results = [item['link'] for item in res['items']]
+    service = build("customsearch", "v1", developerKey="AIzaSyDW5Z7zYsX5uRshI-rz-RAInnAzigLkuT0")
+    res = service.cse().list(q=query, cx='637feeb77e1f3e69b', num=num_results).execute()
+    try:
+        search_results = [item['link'] for item in res['items']]
+        skip = False
+    except:
+        skip = True
+        search_results = []
+        while True:
+            newlink = input("Search failed, enter links one by one manually and write DONE when done: ")
+            if newlink == "DONE":
+                break
+            else:
+                search_results.append(newlink)
     return search_results
 
-# This function extracts text from the given web page link
-def extract_text_from_link(link: str):
-    page = requests.get(link)
-    time.sleep(1)
-    soup = BeautifulSoup(page.content, 'html.parser')
-    all_p_tags = soup.find_all('p')
-    return '\n'.join([p.get_text() for p in all_p_tags])
+def markdown_to_word(markdown_string, file_name):
+    # Split the markdown text into paragraphs
+    paragraphs = markdown_string.split('\n')
+    # Create a new Word document
+    doc = Document()
+    # Iterate through each paragraph in the markdown text
+    for para in paragraphs:
+        if para.startswith("# "):
+            # This is a heading 1
+            paragraph = doc.add_paragraph()
+            run = paragraph.add_run(para[2:])
+            run.bold = True
+            run.font.size = Pt(12)
+            paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        elif para.startswith("## "):
+            # This is a heading 2
+            paragraph = doc.add_paragraph()
+            run = paragraph.add_run(para[3:])
+            run.bold = True
+            run.font.size = Pt(11)
+        else:
+            # This is a normal paragraph
+            paragraph = doc.add_paragraph()
+            # Use a regular expression to find and replace all instances of [^x^]
+            superscript_pattern = re.compile(r'\[\^(\d+)\^\]')
+            start = 0
+            for match in superscript_pattern.finditer(para):
+                # Add the text before the superscript as normal text
+                run = paragraph.add_run(para[start:match.start()])
+                # Add the superscript text
+                run = paragraph.add_run(match.group(1))
+                run.font.superscript = True
+                start = match.end()
+            # Add any remaining text after the last superscript
+            run = paragraph.add_run(para[start:])
+    # Save the document
+    doc.save(file_name)
+    # Open the document using the default application
+    os.system(f'start {file_name}')
 
-# This function segments the text retrieved from the retrieved web pages into chunks of 11000 characters
+def extract_text_from_link(link: str):
+    if link.endswith(('.htm')):
+        page = requests.get(link)
+        time.sleep(1)
+        soup = BeautifulSoup(page.content, 'html.parser')
+        all_b_tags = soup.find_all('b')
+        return '\n'.join([b.get_text() for b in all_b_tags])
+    elif link.endswith('.pdf'):
+        response = requests.get(link)
+        time.sleep(1)
+        pdf_file = io.BytesIO(response.content)
+        pdf_reader = PdfReader(pdf_file)
+        text = ''
+        for page in range(len(pdf_reader.pages)):
+            text += pdf_reader.pages[page].extract_text()
+        return text
+    elif 'sec.gov' in link:
+        page = requests.get(link)
+        time.sleep(1)
+        soup = BeautifulSoup(page.content, 'html.parser')
+        all_font_tags = soup.find_all('font')
+        return '\n'.join([font.get_text() for font in all_font_tags])
+    else:
+        page = requests.get(link)
+        time.sleep(1)
+        soup = BeautifulSoup(page.content, 'html.parser')
+        all_p_tags = soup.find_all('p')
+        return '\n'.join([p.get_text() for p in all_p_tags])
+
+
 def passage_segmenter(passage):
     segment = []
     count = 0
     while count < len(passage):
-        segment.append(passage[count:count + 11000])
-        count += 11000
+        segment.append(passage[count:count + 12000])
+        count += 12000
     return segment
 
-# This function interacts with the OpenAI API to generate the initial dictionary with the search queries and search query goals and the final answer
 def ask_question(messages):
     response = openai.ChatCompletion.create(
         model="gpt-4",
@@ -51,37 +131,43 @@ def ask_question(messages):
                 content = delta["content"]
                 output += content
                 print(content, end="")
-                
+
     return output
 
-# This function orders the list of links based on their relevance to the user's query
 def order_links(query, links_str):
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful, pattern-following assistant."},
-            {"role": "user", "content": f"Output in the format of a python list the order in which of following links are most likely to best answer the query, {query}\nExample output formatting (order is random. Use as a formatting example only. You are only allowed to re-oder the list, you are not allowed to remove links unless they are PDFs or you have been told to leave them out): [4,7,2,1,5,6,8,9,3]\n (answer with list of ints only)? Links: " + links_str}
+            {"role": "user", "content": f"Output in the format of a python list the order in which of following links are most likely to best answer the query, {query}\nExample output formatting (order is random. Use as a formatting example only. You are only allowed to re-oder the list, you are not allowed to remove links unless they are PDFs, which absolutely must be excluded from the list, or you have been told to leave them out): [4,7,2,1,5,6,8,9,3]\n (answer with list of ints only)? Links: " + links_str}
         ]
     )
     output_str = response["choices"][0]["message"]["content"].lower().replace(" ", "")
-
     # Process the output string and convert it into a list of integers
     output_list = [int(x) for x in output_str.strip('[]').split(',') if x.strip().isdigit()]
-    
     return output_list
 
-# This function interacts with OpenAI's GPT-4 model to process the content retrieved from a webpage link. 
-# It generates a detailed summary highlighting the sections of the content that are relevant to the specific search query goal. 
-# The search query goal is directly related to the search query used to retrieve the webpage link.
-def summarize(query, res, link):
+def name_file(output):
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": """You are a helpful, pattern-following assistant. You are given some text retrieved from a website and a research query and you generate a detailed summary of only the parts of the text relevant and useful to the answering the research query. You only answer using the following JSON format:
+            {"role": "system", "content": """You are WordDocumentNameGeneratorGPT. You are given a research report and you come up with a name for it based on what it is about and based on the following word file naming conventions: Avoid backslashes in actual file or directory names as they serve as separators. Volume names may require backslashes, like in "C: or "server\share" in UNC names. Don't count on case sensitivity; treat OSCAR, Oscar, oscar as identical, although POSIX systems may differ. NTFS has POSIX case sensitivity support, but it's non-default. Unicode, and characters from the extent 128-255 are allowed barring reserved characters (like <, >, :, ", /, |, ?, *, and ASCII NUL) and integer values 1-31. Reserved file names include CON, PRN, AUX, NUL, COM(0-9), and LPT(0-9) including any extensions (e.g., NUL.txt). Also, avoid ending names with a space or a period. A period can represent the current directory (.\temp.txt) or the preceding directory (..\temp.txt). Note: Your entire output will be treated as the input for the file name so do not output anything you do not intend to be placed directly into the file name."""},
+            {"role": "user", "content": f"Come up with a file name for the following research report (output file name only): {output}"}
+        ]
+    )
+    output_str = response["choices"][0]["message"]["content"]
+    return output_str
+
+def summarize(query, res, link):
+    response = openai.ChatCompletion.create(
+        model="gpt-4-0613",
+        messages=[
+            {"role": "system", "content": """You are a helpful, pattern-following assistant. You are given some text retrieved from a website and a research query and you generate a very detailed and comprehensive summary of only the parts of the text relevant and useful to the answering the research query. Include as much detail as is physically possible. You only answer using the following JSON format and strictly follow JSON formatting conventions:
              {
                 "is_relevant" : boolean, #true if the provided text provides information relevant to answering the users query, false if the text irrelevant to the query or just discusses access denial to a webpage
-                "summary": "string" #summary of the key information in the text if is_relevant is true. null if is_relevant is false
-            }"""},
+                "summary": "string" #very detailed (but not wordy) summary of the key information in the text if is_relevant is true (squeeze as much info into as few characters as you can. If you'd like, you can even use some shorthand). null if is_relevant is false
+            }
+            NOTE: It cannot be stressed enough how important it is that you do not break JSON formatting conventions. If you do, it will cause a JSONDecodeError"""},
             {"role": "user", "content": f"Summarize the key information in the following text in significant detail, which was scraped from the website {link}, that are relevant to answering the question, {query}. Text: " + res}
         ],
         stream = True
@@ -94,11 +180,8 @@ def summarize(query, res, link):
                 content = delta["content"]
                 output += content
                 print(content, end="")
-    return output
+    return output.strip()
 
-# This function evaluates the relevance and sufficiency of the summary generated from a webpage's content.
-# It determines whether the summary has provided enough information to comprehensively answer the user's research query. 
-# The function requests additional information if the current summary is deemed inadequate for answering the query.
 def check_source(query_links, search_info, topic_summary):
     print("\n")
     response = openai.ChatCompletion.create(
@@ -108,7 +191,7 @@ def check_source(query_links, search_info, topic_summary):
              {
                 "continue" : boolean, #false if the provided summary provides ample information to answer the users question, true if more information is needed.
             }
-            
+
             *Note: only set continue to true if key information is needed, otherwise set this value to false. If the question can be answered using the information gathered, then continue should be false. All thats needed is a few sentences that do answer the question.
             """},
             {"role": "user", "content": f"Does the following text provide ample information to answer the question, {search_info} Text: " + topic_summary +"\nLinks: " + str(query_links)}
@@ -129,13 +212,10 @@ def check_source(query_links, search_info, topic_summary):
                 print(content, end="")
     return output
 
-# This function initiates the research process based on the user's input query.
-# It constructs a dictionary of search queries needed to answer the query, 
-# as well as corresponding goals for each search query, detailing the specific information needed from each search.
 def start_research(query):
     messages=[
         {"role": "system", "content": """
-    You are an AI research assistant that only responds in JSON. You have been shown to be capable of completing 
+    You are an AI research assistant that only responds in JSON. You have been shown to be capable of completing
     complex research tasks that require retriving information on several different topics at a superhuman level.
     The following is the JSON format of all your outputs
     {
@@ -144,7 +224,7 @@ def start_research(query):
             "1" : "string", #first search query,
             "2" : "string", #second search query
             ...
-            "n" : "string" #nth query (Max queries: 5)
+            "n" : "string" #nth query (Max queries: 8)
         }
         "search_query_goals" : {
             "1" : "string", #Describe what information that needs to be obtained with query one
@@ -158,12 +238,10 @@ def start_research(query):
     """}
     ]
     messages.append({"role": "user", "content": query})
-
     # Create a dictionary to hold search queries
     json_dict = {
         "search_queries": {}
     }
-
     response = ask_question(messages)
     json_data = json.loads(response)
     num_searches = int(json_data['number_of_searches'])
@@ -235,8 +313,9 @@ def create_summaries(search_query, search_info, query_links, ordered_links, json
                     json_dict["search_queries"][new_key].append(new_value_dict)
                     link_verdict_json = json.loads(check_source(query_links, search_info, summary_json['summary']))
                     # Break the loop if no more information is needed or if the length limit has been reached
-                    if not link_verdict_json['continue'] or len(link_summary) >= 3000:
-                        break
+                    if not skip:
+                        if not link_verdict_json['continue'] or len(link_summary) >= 12000:
+                            break
                 else:
                     break
                 print("\n")
@@ -262,7 +341,11 @@ def generate_answer(query, json_dict):
     # Initialize the list of messages for the answer
     answer_messages=[
         {"role": "system", "content": """
-        You are a research chatbot. You will be provided with a research task from the user as well as a bunch of information that was just scraped from the web and your job is to use that information to generate a very detailed and comprehensive research report with evidence-based explanations for every argument. Your reports should be comparable in length to professional industry research reports like ones published by Nielsens or think tanks like Brookings Institute. Your outputs should never be less than 700 words in length but you should always aim for 1200 words. You will always cite your work by using footnotes.
+        You are a research chatbot. You will be provided with a research task from the user as well as a bunch of information that was just scraped from the web and your job is to use that information to generate a very detailed and comprehensive research report with evidence-based explanations for every argument. Your reports should be comparable in length to professional industry research reports like ones published by Nielsens or think tanks like Brookings Institute. Your outputs should never be less than 2000 words in length but you should always aim for 3200 words. You will always cite your work by using footnotes and your output will always be in markdown syntax.
+        Follow this formatting:
+            ## Main title
+            # Sub Titles
+            [^n^] (where n is a number) for footnotes
         """}
     ]
     # Generate the prompt for the answer
@@ -289,14 +372,17 @@ def generate_answer(query, json_dict):
     # Return the answer
     return answer
 
+
 def main():
     query = input("Query: ")
     global read_links
-    read_links = [] 
+    read_links = []
     json_dict, json_data, num_searches = start_research(query)
     for i in range(1, num_searches + 1):
         search_query, search_info, query_links, ordered_links, json_dict, new_key = get_web_info(json_dict, json_data, i, read_links)
         json_dict, new_search_generated = create_summaries(search_query, search_info, query_links, ordered_links, json_dict, json_data, new_key, i)
     output = generate_answer(query, json_dict)
-    
+    file_name = name_file(output).replace(" ", "_")
+    markdown_to_word(output, file_name)
+
 main()
