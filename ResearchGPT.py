@@ -17,13 +17,13 @@ from docx.oxml import parse_xml
 from html2text import html2text
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-openai.api_key="openai-api-key"
+openai.api_key="OPENAI_API_KEY"
 
 def search_web(query, num_results=9):
     global skip
     search_results = []
-    service = build("customsearch", "v1", developerKey="google-api-key")
-    res = service.cse().list(q=query, cx='search-engine-key', num=num_results).execute()
+    service = build("customsearch", "v1", developerKey="GOOGLE_API_DEVELOPER_KEY")
+    res = service.cse().list(q=query, cx='GOOGLE_SEARCH_API_ID', num=num_results).execute()
     try:
         search_results = [item['link'] for item in res['items']]
         skip = False
@@ -57,6 +57,12 @@ def markdown_to_word(markdown_string, file_name):
             paragraph = doc.add_paragraph()
             run = paragraph.add_run(para[3:])
             run.bold = True
+            run.font.size = Pt(11)
+        elif para.startswith("### "):
+            # This is a heading 2
+            paragraph = doc.add_paragraph()
+            run = paragraph.add_run(para[4:])
+            run.underline = True
             run.font.size = Pt(11)
         else:
             # This is a normal paragraph
@@ -94,12 +100,6 @@ def extract_text_from_link(link: str):
         for page in range(len(pdf_reader.pages)):
             text += pdf_reader.pages[page].extract_text()
         return text
-    elif 'sec.gov' in link:
-        page = requests.get(link)
-        time.sleep(1)
-        soup = BeautifulSoup(page.content, 'html.parser')
-        all_font_tags = soup.find_all('font')
-        return '\n'.join([font.get_text() for font in all_font_tags])
     else:
         page = requests.get(link)
         time.sleep(1)
@@ -112,13 +112,14 @@ def passage_segmenter(passage):
     segment = []
     count = 0
     while count < len(passage):
-        segment.append(passage[count:count + 12000])
-        count += 12000
+        segment.append(passage[count:count + 11900])
+        count += 119
+        00
     return segment
 
 def ask_question(messages):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4-0613",
         messages=messages,
         stream=True
     )
@@ -139,7 +140,7 @@ def order_links(query, links_str):
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful, pattern-following assistant."},
-            {"role": "user", "content": f"Output in the format of a python list the order in which of following links are most likely to best answer the query, {query}\nExample output formatting (order is random. Use as a formatting example only. You are only allowed to re-oder the list, you are not allowed to remove links unless they are PDFs, which absolutely must be excluded from the list, or you have been told to leave them out): [4,7,2,1,5,6,8,9,3]\n (answer with list of ints only)? Links: " + links_str}
+            {"role": "user", "content": f"Output in the format of a python list the order in which of following links are most likely to best answer the query, {query}\nExample output formatting (order is random. Use as a formatting example only. You are only allowed to re-oder the list, you are not allowed to remove links): [4,7,2,1,5,6,8,9,3]\n (answer with list of ints only)? Links: " + links_str}
         ]
     )
     output_str = response["choices"][0]["message"]["content"].lower().replace(" ", "")
@@ -158,7 +159,13 @@ def name_file(output):
     output_str = response["choices"][0]["message"]["content"]
     return output_str
 
-def summarize(query, res, link):
+def summarize(query, res, link, add_note):
+    if add_note != "":
+        note = "The following is a critique of the summary you wrote on a text snippet from the same article that preceeded the one you are receiving now. USe this to guide your summary: " + add_note +" Only summarize information from this text snippet if it is related to what is specified here. Otherwise set is_relevant to null"
+        print("\n\nNote: " + note + "\n\n")
+        res = note +"\nText: "+ res
+    else:
+        res = "Text: "+ res
     response = openai.ChatCompletion.create(
         model="gpt-4-0613",
         messages=[
@@ -167,8 +174,8 @@ def summarize(query, res, link):
                 "is_relevant" : boolean, #true if the provided text provides information relevant to answering the users query, false if the text irrelevant to the query or just discusses access denial to a webpage
                 "summary": "string" #very detailed (but not wordy) summary of the key information in the text if is_relevant is true (squeeze as much info into as few characters as you can. If you'd like, you can even use some shorthand). null if is_relevant is false
             }
-            NOTE: It cannot be stressed enough how important it is that you do not break JSON formatting conventions. If you do, it will cause a JSONDecodeError"""},
-            {"role": "user", "content": f"Summarize the key information in the following text in significant detail, which was scraped from the website {link}, that are relevant to answering the question, {query}. Text: " + res}
+            NOTE: It cannot be stressed enough how important it is that you do not break JSON formatting conventions. If you do, it will cause a JSONDecodeError. Avoid Invalid control characters. Only output one JSON summary"""},
+            {"role": "user", "content": f"Summarize the key information in the following text in significant detail, which was scraped from the website {link}, that are relevant to answering the question, {query}." + res}
         ],
         stream = True
     )
@@ -178,20 +185,26 @@ def summarize(query, res, link):
             delta = chunk["choices"][0]["delta"]
             if "content" in delta:
                 content = delta["content"]
-                output += content
-                print(content, end="")
+                if "}" in content:
+                    output += content
+                    print(content, end="")
+                    break
+                else:
+                    output += content
+                    print(content, end="")
     return output.strip()
 
 def check_source(query_links, search_info, topic_summary):
     print("\n")
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-3.5-turbo-16k",
         messages=[
-            {"role": "system", "content": """You are a helpful, pattern-following assistant. You will be given a summary of the text from a website and a users question and you will decide whether the summary generated provides enough informration to answer the question or if the information gathered is inadequate and more is needed. You only respond in the following JSON format:
+            {"role": "system", "content": """You are a helpful, pattern-following assistant. You will be given a summary of the text from a website and a users question and you will decide whether the summary generated provides enough information to answer the question or if the information gathered is inadequate and more is needed. But you also make sure not boil the ocean or get stuck in some infinite task loop. Instead, you're aware that there is no such thing as the perfect answer and that your goal is not to optimize towards "all-encompassing" but "just enought". You only respond in the following JSON format:
              {
                 "continue" : boolean, #false if the provided summary provides ample information to answer the users question, true if more information is needed.
+                "reason" : "string", # A one sentence description of exactly what information is missing that is needed to answer the question if continue is true. Also describe in detail what is needed to answer the question and what information is extra. null is continue is false
+                "skip": boolean # If it seems that the content being summarized is not a great source for answering the question, then set "skip" to true. If the text is relevant and more of it should be summarized, set to false
             }
-
             *Note: only set continue to true if key information is needed, otherwise set this value to false. If the question can be answered using the information gathered, then continue should be false. All thats needed is a few sentences that do answer the question.
             """},
             {"role": "user", "content": f"Does the following text provide ample information to answer the question, {search_info} Text: " + topic_summary +"\nLinks: " + str(query_links)}
@@ -224,7 +237,7 @@ def start_research(query):
             "1" : "string", #first search query,
             "2" : "string", #second search query
             ...
-            "n" : "string" #nth query (Max queries: 8)
+            "n" : "string" #nth query (Max queries: 8, Min queries: 4)
         }
         "search_query_goals" : {
             "1" : "string", #Describe what information that needs to be obtained with query one
@@ -283,11 +296,13 @@ def create_summaries(search_query, search_info, query_links, ordered_links, json
     }
     # Initialize a link counter
     link_count = 1
+    # Initialize a summary counter
+    summary_count = 0
     # Initialize flags for whether all links have been processed and whether a new search has been generated
     all_links_processed = False
     new_search_generated = False
     # Continue to process links as long as there are links left and the 'continue' flag is set
-    while link_verdict_json['continue'] and not all_links_processed:
+    while link_verdict_json['continue'] and not all_links_processed and summary_count <= 5:
         # For each ordered link...
         for ordered_link in ordered_links:
             # Generate a new key for the link
@@ -300,34 +315,47 @@ def create_summaries(search_query, search_info, query_links, ordered_links, json
             # Segment the text content into manageable chunks
             segments = passage_segmenter(current_link_text)
             # For each segment, generate a summary and check if the source is relevant
+            reason = ""
+            for_verdict = ""
             for segment in segments:
-                link_summary = summarize(search_query, segment, current_link)
+                link_summary = summarize(search_info, segment, current_link, reason)
                 summary_json = json.loads(link_summary)
                 # If the source is relevant, add it to the dictionary and check if more information is needed
                 if summary_json['is_relevant']:
+                    for_verdict += summary_json['summary']
                     read_links.append(current_link)
                     new_value_dict = {
                         f"{link_key}": current_link,
                         f"{link_key}_summary": summary_json['summary']
                     }
                     json_dict["search_queries"][new_key].append(new_value_dict)
-                    link_verdict_json = json.loads(check_source(query_links, search_info, summary_json['summary']))
+                    link_verdict_json = json.loads(check_source(query_links, search_info, for_verdict))
+                    # Increment the summary counter
+                    summary_count += 1
                     # Break the loop if no more information is needed or if the length limit has been reached
-                    if not skip:
-                        if not link_verdict_json['continue'] or len(link_summary) >= 12000:
-                            break
+                    if not link_verdict_json['continue'] or len(link_summary) >= 6000:
+                        reason = ""
+                        for_verdict = ""
+                        break
+                    elif link_verdict_json['skip'] is True:
+                        break
+                    else:
+                        reason = link_verdict_json['reason']
                 else:
                     break
                 print("\n")
             # Increment the link counter
             link_count += 1
             # Set the 'all_links_processed' flag if all links have been processed
+            print("\n\nSummary count: " + str(summary_count) + "\n\n")
             if link_count > len(ordered_links):
                 all_links_processed = True
-            # Break the loop if no more information is needed, if the link limit has been reached, or if all links have been processed
-            if not link_verdict_json['continue'] or link_count > 9 or all_links_processed:
+            if summary_count >= 5:
                 break
-        if not link_verdict_json['continue'] or link_count > 9 or all_links_processed:
+            # Break the loop if no more information is needed, if the link limit has been reached, or if all links have been processed
+            if not link_verdict_json['continue'] or link_count > 9 or all_links_processed or summary_count >= 5:
+                break
+        if not link_verdict_json['continue'] or link_count > 9 or all_links_processed or summary_count >= 5:
             break
     # Print the updated dictionary
     storage = json.dumps(json_dict, indent=2)
@@ -336,15 +364,16 @@ def create_summaries(search_query, search_info, query_links, ordered_links, json
     # Return the updated dictionary and the 'new_search_generated' flag
     return json_dict, new_search_generated
 
+
 # Function to generate an answer from the gathered and summarized information
 def generate_answer(query, json_dict):
     # Initialize the list of messages for the answer
     answer_messages=[
         {"role": "system", "content": """
-        You are a research chatbot. You will be provided with a research task from the user as well as a bunch of information that was just scraped from the web and your job is to use that information to generate a very detailed and comprehensive research report with evidence-based explanations for every argument. Your reports should be comparable in length to professional industry research reports like ones published by Nielsens or think tanks like Brookings Institute. Your outputs should never be less than 2000 words in length but you should always aim for 3200 words. You will always cite your work by using footnotes and your output will always be in markdown syntax.
+        You are a research chatbot. You will be provided with a research task from the user as well as a bunch of information that was just scraped from the web and your job is to use that information to generate a very detailed and comprehensive research report with evidence-based explanations for every argument. Your reports should be comparable in length to professional industry research reports like ones published by Nielsens or think tanks like Brookings Institute. Your outputs should never be less than 3000 words in length but you should always aim for 5200 words. You will always cite your work by using footnotes and your output will always be in markdown syntax.
         Follow this formatting:
-            ## Main title
-            # Sub Titles
+            # Main title
+            ## Sub Titles
             [^n^] (where n is a number) for footnotes
         """}
     ]
@@ -369,6 +398,7 @@ def generate_answer(query, json_dict):
     answer_messages.append({"role": "user", "content": answer_prompt})
     # Generate the answer based on the messages
     answer = ask_question(answer_messages)
+    answer = answer.replace("\n\n", "\n")
     # Return the answer
     return answer
 
@@ -384,5 +414,6 @@ def main():
     output = generate_answer(query, json_dict)
     file_name = name_file(output).replace(" ", "_")
     markdown_to_word(output, file_name)
+
 
 main()
